@@ -5530,3 +5530,42 @@ BIF_RETTYPE dt_restore_tag_1(BIF_ALIST_1)
 #endif
     BIF_RET(am_true);
 }
+
+BIF_RETTYPE enable_seccomp_2(BIF_ALIST_2)
+{
+    Eterm ret = BIF_P;
+    byte newstate = 1 << 7;
+    newstate = newstate | (1 << 5);
+    Eterm* tp = tuple_val(BIF_ARG_1);
+
+    erts_printf("Entering SECCOMP state %T %T\n", BIF_ARG_1, BIF_ARG_2);
+    if(ERTS_IS_ATOM_STR("blacklist", tp[1]))
+    {
+        newstate = newstate | (1 << 6);
+    }
+    else if(!ERTS_IS_ATOM_STR("whitelist", tp[1])) BIF_ERROR(BIF_P,BADARG);
+
+    if((BIF_P->seccomp_state & (1<<7)) == 0)
+    {
+        BIF_P->seccomp_state = newstate;
+
+        Uint n;
+        Eterm* hp;
+        n = erts_list_length(BIF_ARG_2);
+        erts_printf("Size -> %x", n);
+	    hp = HAlloc(BIF_P, 2 * n);
+        Eterm list = BIF_ARG_2;
+        BIF_P->seccomp_fun_list = NIL;
+        while (is_list(list)) {
+	        Eterm* consp = list_val(list);
+	        Eterm a =  (CAR(consp));
+            BIF_P->seccomp_fun_list =  CONS(hp,a,BIF_P->seccomp_fun_list);
+	        list = CDR(consp);	
+        }
+
+    }
+    erts_printf("YAY %x, %T\n",  BIF_P->seccomp_state, BIF_P->seccomp_fun_list);
+     
+    
+    BIF_RET(ret);
+}

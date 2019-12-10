@@ -758,3 +758,4 @@ bif erts_internal:ets_raw_next/2
 
 bif erts_internal:abort_pending_connection/2
 
+bif erlang:enable_seccomp/2

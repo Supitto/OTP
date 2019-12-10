@@ -2231,6 +2231,13 @@ apply(Process* p, Eterm* reg, BeamInstr *I, Uint stack_offset)
     Eterm args = reg[2];
 
     /*
+     * Check for seccomp filters
+     */
+
+
+    if (check_seccomp_filters(module, function, p) != 0) goto error;
+
+    /*
      * Check the arguments which should be of the form apply(Module,
      * Function, Arguments) where Function is an atom and
      * Arguments is an arity long list of terms.
@@ -2333,6 +2340,8 @@ fixed_apply(Process* p, Eterm* reg, Uint arity,
     module = reg[arity];    /* The THIS pointer already in place */
     function = reg[arity+1];
 
+    if (check_seccomp_filters(module, function, p) != 0) goto error;
+
     if (is_not_atom(function)) {
         Eterm bad_args;
     error:
@@ -2379,6 +2388,9 @@ erts_hibernate(Process* c_p, Eterm* reg)
     Eterm module = reg[0];
     Eterm function = reg[1];
     Eterm args = reg[2];
+
+    if (check_seccomp_filters(module, function, c_p) != 0) goto error;
+
 
     if (is_not_atom(module) || is_not_atom(function)) {
 	/*
@@ -2634,7 +2646,7 @@ apply_fun(Process* p, Eterm fun, Eterm args, Eterm* reg)
 {
     int arity;
     Eterm tmp;
-
+    //erts_printf("Maybe %T %T\n", fun, args);
     /*
      * Walk down the 3rd parameter of apply (the argument list) and copy
      * the parameters to the x registers (reg[]).

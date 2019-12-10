@@ -52,6 +52,7 @@
          dist_ctrl_set_opt/3,
          dist_get_stat/1]).
 
+-export([enable_seccomp/2]).
 -deprecated([get_stacktrace/0,now/0]).
 
 %% Get rid of autoimports of spawn to avoid clashes with ourselves.

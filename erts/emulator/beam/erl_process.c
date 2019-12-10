@@ -107,6 +107,11 @@
 #define LOW_BIT       (1 << PRIORITY_LOW)
 #define PORT_BIT      (1 << ERTS_PORT_PRIO_LEVEL)
 
+#define SECCOMP_E 1<<7
+#define SECCOMP_B_OR_W 1<<6
+#define SECCOMP_D_SPW 1<<5
+#define SECCOMP_D_IHT 1<<4
+
 #define ERTS_IS_RUNQ_EMPTY_FLGS(FLGS) \
     (!((FLGS) & (ERTS_RUNQ_FLGS_QMASK|ERTS_RUNQ_FLG_MISC_OP)))
 
@@ -11417,6 +11422,13 @@ erl_create_process(Process* parent, /* Parent of process (default group leader).
      * Check for errors.
      */
 
+    //erts_printf("f\n\n\n\uck -> %x\n", parent->seccomp_state);
+
+    /*if((parent->seccomp_state & SECCOMP_E) != 0 && (parent->seccomp_state & SECCOMP_D_SPW != 0)){
+        so->error_code = EXC_ERROR;
+        goto error;
+    }*/
+
     if (is_not_atom(mod) || is_not_atom(func) || ((arity = erts_list_length(args)) < 0)) {
 	so->error_code = BADARG;
 	goto error;
@@ -11695,6 +11707,19 @@ erl_create_process(Process* parent, /* Parent of process (default group leader).
 	so->mref = mref;
     }
 
+    //erts_printf("fuck -> %x\n", parent->seccomp_state);
+
+    if((parent->seccomp_state & SECCOMP_E) != 0 && (parent->seccomp_state & SECCOMP_D_IHT) != 0){
+        p->seccomp_state = parent->seccomp_state;
+        *p->seccomp_fun_list = *parent->seccomp_fun_list;
+    }
+    else
+    {
+        p->seccomp_state = 0;
+        p->seccomp_fun_list = NULL;
+    }
+    
+
     erts_proc_unlock(p, locks);
 
     res = p->common.id;
@@ -11735,6 +11760,7 @@ erl_create_process(Process* parent, /* Parent of process (default group leader).
 
 void erts_init_empty_process(Process *p)
 {
+    p->seccomp_state = 0;
     p->htop = NULL;
     p->stop = NULL;
     p->hend = NULL;
@@ -13611,4 +13637,47 @@ erts_debug_proc_monitor_link_foreach(Process *proc,
                                       arg);
 
     }
+}
+
+int check_seccomp_filters(Eterm module, Eterm function, Process* p)
+{
+    int ret = 0;
+     //erts_printf("Testing %T %T %x\n",module, function, p->seccomp_state);
+     //erts_printf("AAAA %x\n", p->seccomp_state & SECCOMP_E);
+    if ((p->seccomp_state & SECCOMP_E) == 0) goto fine;
+    erts_printf("IN SECCOMP STATE \n");
+
+    int blacklist = p->seccomp_state & SECCOMP_B_OR_W;
+    int in_list = 0;
+    erts_printf("Cheguei aquui %T\n", p->seccomp_fun_list);
+    Sint n = erts_list_length(p->seccomp_fun_list);
+    erts_printf("Cheguei aquui, N -> %x\n",n);
+    if ((!blacklist && n == 0) || n < 0) goto error;
+    if (blacklist && n == 0) goto fine;
+    int i;
+    erts_printf("SCANNING FUNTIONS\n");
+    if(is_list(*p->seccomp_fun_list)){
+        erts_printf("NOT LIST");
+    }
+    for (i = 0; i < n; i++) {
+      erts_printf("Chegamos aqui %T\n", p->seccomp_fun_list);
+    //erts_printf("Chegamos aqui %T\n", *list_val(*p->seccomp_fun_list));
+
+	  Eterm term = CAR(list_val(p->seccomp_fun_list));
+      Eterm term2 = CDR(list_val(p->seccomp_fun_list));
+      erts_printf("Chegamos aqui %T %T\n", term, term2);
+      if (!is_tuple(term)) goto error; 
+	  Eterm* tp = tuple_val(term);
+      erts_printf("Deu bom");
+      erts_printf("LUL %T, %T -> %T, %T", tp[1], module, tp[2], function);
+      in_list = (tp[1] == module) && (tp[2] == function);
+      if((blacklist && in_list) || (!blacklist && !in_list)) goto error;
+    }
+    erts_printf("I'm OK\n");
+    goto fine;
+    error:
+      erts_printf("ERROR\n");
+      ret = 1;
+    fine:
+      return ret;
 }

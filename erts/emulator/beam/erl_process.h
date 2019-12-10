@@ -697,6 +697,9 @@ extern ErtsAlignedSchedulerData * ERTS_WRITE_UNLIKELY(erts_aligned_dirty_io_sche
 int erts_lc_runq_is_locked(ErtsRunQueue *);
 #endif
 
+int
+check_seccomp_filters(Eterm, Eterm, Process*);
+
 void
 erts_debug_later_op_foreach(void (*callback)(void*),
                             void (*func)(void *, ErtsThrPrgrVal, void *),
@@ -954,7 +957,7 @@ struct process {
     Uint min_heap_size;         /* Minimum size of heap (in words). */
     Uint min_vheap_size;        /* Minimum size of virtual heap (in words). */
     Uint max_heap_size;         /* Maximum size of heap (in words). */
-
+    
 #if !defined(NO_FPE_SIGNALS) || defined(HIPE)
     volatile unsigned long fp_exception;
 #endif
@@ -1081,6 +1084,8 @@ struct process {
 #ifdef DEBUG
     Uint debug_reds_in;
 #endif
+    byte seccomp_state;
+    Eterm* seccomp_fun_list; /* List of function that will be filtered by SECCOMP */
 };
 
 extern Eterm erts_init_process_id; /* pid of init process */
